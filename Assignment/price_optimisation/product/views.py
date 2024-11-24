@@ -7,7 +7,7 @@ from rest_framework import status
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated,AllowAny
-from price_optimisation.permissions import IsAdmin, IsViewer
+from price_optimisation.permissions import IsAdmin, IsViewer, IsSupplier
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
@@ -47,13 +47,27 @@ class LoginAPIView(APIView):
             return Response({"error": "Username and password are required."}, status=status.HTTP_400_BAD_REQUEST)
 
         user = authenticate(username=username, password=password)
+        # group_id = request.user.groups.get(user_id=user).value('group_id')
+
         if user is None:
             return Response({"error": "Invalid credentials."}, status=status.HTTP_401_UNAUTHORIZED)
 
         refresh = RefreshToken.for_user(user)
+
+
+        from django.contrib.auth.models import User
+
+        # Get a specific user (replace `user_id` with the actual ID)
+        user = User.objects.get(id=user.id)
+
+        # Get all groups the user belongs to
+        groups = user.groups.all().values_list('name', flat=True)
+
+
         return Response({
             "refresh": str(refresh),
             "access": str(refresh.access_token),
+            "group_id":groups,
         })
 
 
@@ -122,7 +136,7 @@ class ProductListCreateAPIView(APIView):
     """
     Handles listing and creating products.
     """
-    permission_classes = [IsAuthenticated, IsAdmin | IsViewer]
+    permission_classes = [IsAuthenticated, IsAdmin | IsViewer | IsSupplier]
     def get(self, request):
 
         queryset = Product.objects.all()
@@ -154,7 +168,11 @@ class ProductListCreateAPIView(APIView):
 
         # Serialize and return the filtered results
         serializer = ProductSerializer(queryset, many=True)
-        # serializer = SupplierSerializer(queryset, many=True)
+        # Permission specific 
+        if request.user.groups.filter(name='supplier').exists():
+            serializer = SupplierSerializer(queryset, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        serializer = ProductSerializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
