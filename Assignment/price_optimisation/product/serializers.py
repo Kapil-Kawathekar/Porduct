@@ -27,3 +27,18 @@ class ProductSerializer(serializers.ModelSerializer):
         if data.get('selling_price') < data.get('cost_price'):
             raise serializers.ValidationError("Selling price cannot be less than cost price.")
         return data
+
+
+class SupplierSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True)
+
+    class Meta:
+        model = Product
+        fields = ['id', 'name', 'category', 'category_name', 'cost_price',
+                  'description']
+    
+    def validate(self, data):
+        # Ensure selling_price is not less than cost_price
+        if data.get('selling_price') < data.get('cost_price'):
+            raise serializers.ValidationError("Selling price cannot be less than cost price.")
+        return data
